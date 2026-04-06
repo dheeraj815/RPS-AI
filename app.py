@@ -3,482 +3,633 @@ import random
 import time
 import matplotlib.pyplot as plt
 import pandas as pd
+import numpy as np
 from datetime import datetime
+from collections import Counter
 
-# ================================================
-# 🎨 PAGE CONFIGURATION
-# ================================================
 st.set_page_config(
-    page_title="🤖 Smart RPS AI",
-    page_icon="🎮",
-    layout="centered",
-    initial_sidebar_state="collapsed"
+    page_title="NEXUS · RPS ENGINE",
+    page_icon="⬡",
+    layout="wide",
+    initial_sidebar_state="collapsed",
 )
 
-# ================================================
-# 🎨 CUSTOM STYLING
-# ================================================
-st.markdown("""
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap');
-        
-        /* Main container styling */
-        [data-testid="stAppViewContainer"] {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            font-family: 'Poppins', sans-serif;
-        }
-        
-        /* Hide default Streamlit elements */
-        #MainMenu {visibility: hidden;}
-        footer {visibility: hidden;}
-        header {visibility: hidden;}
-        
-        /* Title styling */
-        h1 {
-            text-align: center;
-            color: #ffffff;
-            font-weight: 800;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-            margin-bottom: 0px;
-            font-size: 3em !important;
-        }
-        
-        h2, h3, h4 {
-            color: #ffffff;
-            text-align: center;
-            font-weight: 600;
-        }
-        
-        /* Card containers */
-        .game-card {
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 20px;
-            padding: 30px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-            backdrop-filter: blur(10px);
-            margin: 20px 0;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-        }
-        
-        /* Button styling */
-        div.stButton > button {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 15px;
-            font-size: 18px;
-            font-weight: 700;
-            padding: 15px 0;
-            width: 100%;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        
-        div.stButton > button:hover {
-            background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
-        }
-        
-        div.stButton > button:active {
-            transform: translateY(0px);
-        }
-        
-        /* Result box styling */
-        .result-box {
-            padding: 25px;
-            border-radius: 15px;
-            text-align: center;
-            color: white;
-            font-size: 22px;
-            font-weight: 700;
-            margin: 15px 0;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-            animation: fadeIn 0.5s ease-in;
-        }
-        
-        @keyframes fadeIn {
-            from { opacity: 0; transform: scale(0.9); }
-            to { opacity: 1; transform: scale(1); }
-        }
-        
-        /* Metric styling */
-        [data-testid="stMetricValue"] {
-            font-size: 2em;
-            font-weight: 800;
-            color: #667eea;
-        }
-        
-        /* Info box */
-        .strategy-tip {
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-            color: white;
-            padding: 20px;
-            border-radius: 15px;
-            box-shadow: 0 4px 15px rgba(240, 147, 251, 0.3);
-            margin: 20px 0;
-        }
-        
-        /* Progress bar */
-        .stProgress > div > div > div > div {
-            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-        }
-        
-        /* Subtitle */
-        .subtitle {
-            text-align: center;
-            color: #ffffff;
-            font-size: 1.2em;
-            margin-bottom: 30px;
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
-        }
-        
-        /* Stats header */
-        .stats-header {
-            color: #667eea;
-            font-weight: 700;
-            font-size: 1.5em;
-            margin-bottom: 15px;
-            text-align: center;
-        }
-    </style>
-""", unsafe_allow_html=True)
-
-# ================================================
-# 🎯 GAME CONFIGURATION
-# ================================================
+# ═══════════════════════════════════════════════════════════════════════════════
+#  CONSTANTS
+# ═══════════════════════════════════════════════════════════════════════════════
 MOVES = ["rock", "paper", "scissors"]
+
 EMOJIS = {"rock": "🪨", "paper": "📄", "scissors": "✂️"}
+
+COLORS = {"rock": "#fb923c", "paper": "#60a5fa", "scissors": "#f472b6"}
+
 COUNTERS = {"rock": "paper", "paper": "scissors", "scissors": "rock"}
 
-# ================================================
-# 💾 SESSION STATE INITIALIZATION
-# ================================================
+AI_STRATEGY_LABELS = {
+    "frequency":  "Frequency Analysis",
+    "markov":     "Markov Chain",
+    "adaptive":   "Adaptive Ensemble",
+    "aggressive": "Aggressive Counter",
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  SESSION STATE
+# ═══════════════════════════════════════════════════════════════════════════════
 
 
-def initialize_session_state():
-    """Initialize all session state variables"""
-    if "move_history" not in st.session_state:
-        st.session_state.move_history = {move: 0 for move in MOVES}
-
-    if "scores" not in st.session_state:
-        st.session_state.scores = {"player": 0, "ai": 0, "ties": 0}
-
-    if "last_round" not in st.session_state:
-        st.session_state.last_round = {
-            "player": None, "ai": None, "result": None}
-
-    if "game_log" not in st.session_state:
-        st.session_state.game_log = []
-
-    if "ai_strategy" not in st.session_state:
-        st.session_state.ai_strategy = "adaptive"
-
-    if "rounds_played" not in st.session_state:
-        st.session_state.rounds_played = 0
-
-
-initialize_session_state()
-
-# ================================================
-# 🧠 AI LOGIC
-# ================================================
-
-
-def predict_player_move(history, rounds_played):
-    """Advanced AI prediction based on player history"""
-    if rounds_played < 3:
-        # Random strategy for first few rounds
-        return random.choice(MOVES)
-
-    total_moves = sum(history.values())
-    if total_moves == 0:
-        return random.choice(MOVES)
-
-    # Weight recent moves more heavily
-    if st.session_state.game_log:
-        recent_moves = [round_data["player"]
-                        for round_data in st.session_state.game_log[-5:]]
-        if len(recent_moves) >= 3:
-            # Check for patterns
-            most_recent = recent_moves[-1]
-            if recent_moves.count(most_recent) >= 2:
-                return COUNTERS[most_recent]
-
-    # Fallback to frequency-based prediction
-    likely_player_move = max(history, key=history.get)
-
-    # Add some randomness to avoid being too predictable
-    if random.random() < 0.15:  # 15% random choice
-        return random.choice(MOVES)
-
-    return COUNTERS[likely_player_move]
-
-
-def determine_winner(player_move, ai_move):
-    """Determine the winner of the round"""
-    if player_move == ai_move:
-        return "tie"
-
-    winning_combinations = {
-        ("rock", "scissors"),
-        ("paper", "rock"),
-        ("scissors", "paper")
+def init_state():
+    defaults = {
+        "scores": {"player": 0, "ai": 0, "ties": 0},
+        "move_freq": {m: 0 for m in MOVES},
+        "game_log": [],
+        "last_round": None,
+        "rounds": 0,
+        "current_streak": 0,
+        "best_win_streak": 0,
+        "ai_strategy": "adaptive",
+        "markov": {m: {n: 0 for n in MOVES} for m in MOVES},
+        "prev_player_move": None,
+        "ai_confidence": 0.0,
+        "ai_predicted": None,
+        "pattern_warning": None,
+        "achievements": set(),
+        "new_achievement": None,
+        "show_debug": False,
     }
+    for k, v in defaults.items():
+        if k not in st.session_state:
+            st.session_state[k] = v
 
-    if (player_move, ai_move) in winning_combinations:
-        return "player"
-    return "ai"
+
+init_state()
+s = st.session_state
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  AI ENGINE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class AIEngine:
+    @staticmethod
+    def strategy_frequency(freq, rounds):
+        if rounds < 2:
+            return random.choice(MOVES), 0.33
+        total = sum(freq.values()) or 1
+        probs = {m: freq[m] / total for m in MOVES}
+        predicted = max(probs, key=probs.get)
+        return COUNTERS[predicted], probs[predicted]
+
+    @staticmethod
+    def strategy_markov(markov, prev_move, rounds):
+        if rounds < 4 or prev_move is None:
+            return random.choice(MOVES), 0.33
+        transitions = markov[prev_move]
+        total = sum(transitions.values()) or 1
+        probs = {m: transitions[m] / total for m in MOVES}
+        predicted = max(probs, key=probs.get)
+        return COUNTERS[predicted], probs[predicted]
+
+    @staticmethod
+    def strategy_pattern(game_log, window=6):
+        if len(game_log) < window:
+            return random.choice(MOVES), 0.33
+        recent = [r["player_move"] for r in game_log[-window:]]
+        for pat_len in [2, 3]:
+            if len(recent) >= pat_len * 2:
+                pattern = recent[-pat_len:]
+                for i in range(len(recent) - pat_len * 2 + 1):
+                    if recent[i:i+pat_len] == pattern:
+                        following = []
+                        for j in range(len(recent) - pat_len):
+                            if recent[j:j+pat_len] == pattern and j + pat_len < len(recent):
+                                following.append(recent[j+pat_len])
+                        if following:
+                            cnt = Counter(following)
+                            predicted = cnt.most_common(1)[0][0]
+                            conf = cnt.most_common(1)[0][1] / len(following)
+                            return COUNTERS[predicted], conf
+        return random.choice(MOVES), 0.33
+
+    @staticmethod
+    def strategy_aggressive(freq, game_log, rounds):
+        if rounds < 3:
+            return random.choice(MOVES), 0.33
+        recent_moves = [r["player_move"]
+                        for r in game_log[-8:]] if game_log else []
+        if not recent_moves:
+            return random.choice(MOVES), 0.33
+        cnt = Counter(recent_moves)
+        predicted = cnt.most_common(1)[0][0]
+        confidence = cnt.most_common(1)[0][1] / len(recent_moves)
+        return COUNTERS[predicted], min(confidence + 0.1, 0.99)
+
+    @classmethod
+    def get_move(cls, strategy, state):
+        freq = state["move_freq"]
+        markov = state["markov"]
+        prev = state["prev_player_move"]
+        log = state["game_log"]
+        rounds = state["rounds"]
+
+        if strategy == "frequency":
+            counter, conf = cls.strategy_frequency(freq, rounds)
+        elif strategy == "markov":
+            counter, conf = cls.strategy_markov(markov, prev, rounds)
+        elif strategy == "aggressive":
+            counter, conf = cls.strategy_aggressive(freq, log, rounds)
+        else:
+            results = [
+                cls.strategy_frequency(freq, rounds),
+                cls.strategy_markov(markov, prev, rounds),
+                cls.strategy_pattern(log),
+                cls.strategy_aggressive(freq, log, rounds),
+            ]
+            vote_weight = {m: 0.0 for m in MOVES}
+            for move, conf in results:
+                vote_weight[move] += conf
+            counter = max(vote_weight, key=vote_weight.get)
+            conf = vote_weight[counter] / sum(vote_weight.values())
+
+        predicted = {v: k for k, v in COUNTERS.items()}.get(counter)
+        return counter, conf, predicted
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  GAME LOGIC
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+def determine_result(player, ai):
+    if player == ai:
+        return "tie"
+    if (player, ai) in {("rock", "scissors"), ("paper", "rock"), ("scissors", "paper")}:
+        return "win"
+    return "lose"
 
 
 def play_round(player_move):
-    """Execute a game round"""
-    # Update move history
-    st.session_state.move_history[player_move] += 1
-    st.session_state.rounds_played += 1
+    if s.prev_player_move is not None:
+        s.markov[s.prev_player_move][player_move] += 1
 
-    # AI makes its choice
-    ai_move = predict_player_move(
-        st.session_state.move_history, st.session_state.rounds_played)
+    ai_move, confidence, ai_predicted = AIEngine.get_move(
+        s.ai_strategy,
+        {"move_freq": s.move_freq, "markov": s.markov,
+         "prev_player_move": s.prev_player_move, "game_log": s.game_log, "rounds": s.rounds}
+    )
 
-    # Determine winner
-    result = determine_winner(player_move, ai_move)
+    result = determine_result(player_move, ai_move)
+    s.scores[{"win": "player", "lose": "ai", "tie": "ties"}[result]] += 1
 
-    # Update scores
-    if result == "tie":
-        st.session_state.scores["ties"] += 1
-        message = "🤝 It's a Tie!"
-        color = "#9E9E9E"
-    elif result == "player":
-        st.session_state.scores["player"] += 1
-        message = "🎉 You Win!"
-        color = "#4CAF50"
+    if result == "win":
+        s.current_streak = s.current_streak + 1 if s.current_streak >= 0 else 1
+        s.best_win_streak = max(s.best_win_streak, s.current_streak)
+    elif result == "lose":
+        s.current_streak = s.current_streak - 1 if s.current_streak <= 0 else -1
     else:
-        st.session_state.scores["ai"] += 1
-        message = "🤖 AI Wins!"
-        color = "#F44336"
+        s.current_streak = 0
 
-    # Store round data
-    st.session_state.last_round = {
-        "player": player_move,
-        "ai": ai_move,
-        "result": message,
-        "color": color
+    s.move_freq[player_move] += 1
+    s.rounds += 1
+
+    s.last_round = {
+        "player_move": player_move, "ai_move": ai_move,
+        "result": result, "confidence": confidence,
+        "ai_predicted": ai_predicted, "round_no": s.rounds,
     }
-
-    # Log the round
-    st.session_state.game_log.append({
-        "round": st.session_state.rounds_played,
-        "player": player_move,
-        "ai": ai_move,
-        "winner": result,
-        "timestamp": datetime.now().strftime("%H:%M:%S")
+    s.game_log.append({
+        "round": s.rounds, "player_move": player_move, "ai_move": ai_move,
+        "result": result, "confidence": round(confidence * 100, 1),
+        "ts": datetime.now().strftime("%H:%M:%S"),
     })
+
+    s.ai_confidence = confidence
+    s.ai_predicted = ai_predicted
+    s.prev_player_move = player_move
+    _update_pattern_warning()
+    _check_achievements()
+
+
+def _update_pattern_warning():
+    if s.rounds < 6:
+        s.pattern_warning = None
+        return
+    recent = [r["player_move"] for r in s.game_log[-8:]]
+    cnt = Counter(recent)
+    top_move, top_cnt = cnt.most_common(1)[0]
+    if top_cnt / len(recent) > 0.65:
+        s.pattern_warning = f"You've played {EMOJIS[top_move]} {top_move.upper()} {top_cnt}x in last {len(recent)} rounds. AI has likely adapted."
+    else:
+        s.pattern_warning = None
+
+
+def _check_achievements():
+    achv = s.achievements
+    new = None
+    if s.rounds == 1 and "first_blood" not in achv:
+        achv.add("first_blood")
+        new = ("⚔️", "FIRST BLOOD", "Played your first round")
+    if s.rounds == 10 and "ten_rounds" not in achv:
+        achv.add("ten_rounds")
+        new = ("🔟", "DECADE", "Survived 10 rounds")
+    if s.best_win_streak >= 5 and "streak_5" not in achv:
+        achv.add("streak_5")
+        new = ("🔥", "ON FIRE", "5-win streak achieved")
+    if s.best_win_streak >= 10 and "streak_10" not in achv:
+        achv.add("streak_10")
+        new = ("💥", "UNSTOPPABLE", "10-win streak — legendary")
+    if s.scores["player"] >= 25 and "veteran" not in achv:
+        achv.add("veteran")
+        new = ("🎖️", "VETERAN", "25 total wins")
+    if s.rounds >= 50 and "endurance" not in achv:
+        achv.add("endurance")
+        new = ("🏃", "ENDURANCE", "Played 50 rounds")
+    total = s.scores["player"] + s.scores["ai"]
+    if total > 0 and s.scores["player"] / total > 0.7 and s.rounds >= 10 and "dominator" not in achv:
+        achv.add("dominator")
+        new = ("👑", "DOMINATOR", ">70% win rate over 10+ rounds")
+    s.new_achievement = new
 
 
 def reset_game():
-    """Reset all game state"""
-    st.session_state.move_history = {move: 0 for move in MOVES}
-    st.session_state.scores = {"player": 0, "ai": 0, "ties": 0}
-    st.session_state.last_round = {"player": None, "ai": None, "result": None}
-    st.session_state.game_log = []
-    st.session_state.rounds_played = 0
+    keys = ["scores", "move_freq", "game_log", "last_round", "rounds", "current_streak",
+            "best_win_streak", "markov", "prev_player_move", "ai_confidence", "ai_predicted",
+            "pattern_warning", "achievements", "new_achievement"]
+    for k in keys:
+        if k in st.session_state:
+            del st.session_state[k]
+    init_state()
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  CHARTS
+# ═══════════════════════════════════════════════════════════════════════════════
 
 
-# ================================================
-# 🎮 HEADER SECTION
-# ================================================
-st.markdown("<h1>🪨📄✂️ SMART RPS AI</h1>", unsafe_allow_html=True)
-st.markdown("<p class='subtitle'>Challenge an adaptive AI that learns from your patterns!</p>",
-            unsafe_allow_html=True)
+def chart_win_timeline():
+    if len(s.game_log) < 3:
+        return None
+    fig, ax = plt.subplots(figsize=(10, 3))
+    log = s.game_log
+    rounds = [r["round"] for r in log]
+    cumwin, cumlose, cw, cl = [], [], 0, 0
+    for r in log:
+        if r["result"] == "win":
+            cw += 1
+        if r["result"] == "lose":
+            cl += 1
+        cumwin.append(cw)
+        cumlose.append(cl)
+    ax.fill_between(rounds, cumwin, alpha=0.15, color="#4ade80")
+    ax.fill_between(rounds, cumlose, alpha=0.15, color="#f87171")
+    ax.plot(rounds, cumwin, color="#4ade80", linewidth=2, label="Player Wins")
+    ax.plot(rounds, cumlose, color="#f87171", linewidth=2, label="AI Wins")
+    ax.set_xlabel("Round")
+    ax.set_ylabel("Cumulative")
+    ax.legend()
+    ax.grid(True, alpha=0.4)
+    plt.tight_layout()
+    return fig
 
-# ================================================
-# 🎯 GAME CONTROLS
-# ================================================
-st.markdown("<div class='game-card'>", unsafe_allow_html=True)
-st.markdown("<p class='stats-header'>🎯 Choose Your Move</p>",
-            unsafe_allow_html=True)
 
-cols = st.columns(3)
-for idx, move in enumerate(MOVES):
-    with cols[idx]:
-        if st.button(f"{EMOJIS[move]}\n{move.upper()}", key=f"move_{move}"):
-            with st.spinner("🤔 AI is thinking..."):
-                time.sleep(0.8)
-            play_round(move)
+def chart_move_distribution():
+    if s.rounds < 1:
+        return None
+    fig, ax = plt.subplots(figsize=(6, 3))
+    values = [s.move_freq[m] for m in MOVES]
+    bar_colors = [COLORS[m] for m in MOVES]
+    labels = [f"{EMOJIS[m]} {m.upper()}" for m in MOVES]
+    bars = ax.bar(labels, values, color=bar_colors, width=0.55)
+    for bar, val in zip(bars, values):
+        if val > 0:
+            ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.2,
+                    str(val), ha="center", va="bottom", fontsize=11, fontweight="bold")
+    ax.set_ylim(0, max(values)*1.3+1)
+    ax.yaxis.set_visible(False)
+    plt.tight_layout()
+    return fig
+
+
+def chart_ai_confidence():
+    if len(s.game_log) < 3:
+        return None
+    fig, ax = plt.subplots(figsize=(10, 2.5))
+    rounds = [r["round"] for r in s.game_log]
+    confs = [r["confidence"] for r in s.game_log]
+    ax.fill_between(rounds, confs, alpha=0.12, color="#63cab7")
+    ax.plot(rounds, confs, color="#63cab7", linewidth=1.5)
+    ax.axhline(50, color="#aaa", linewidth=1, linestyle="--")
+    ax.set_ylim(0, 100)
+    ax.set_xlabel("Round")
+    ax.set_ylabel("Confidence %")
+    ax.grid(True, alpha=0.3)
+    plt.tight_layout()
+    return fig
+
+
+def chart_result_donut():
+    scores = s.scores
+    if sum(scores.values()) < 1:
+        return None
+    fig, ax = plt.subplots(figsize=(4, 4))
+    sizes = [scores["player"], scores["ai"], scores["ties"]]
+    colors = ["#4ade80", "#f87171", "#a78bfa"]
+    wedges, _ = ax.pie(sizes, colors=colors, startangle=90,
+                       wedgeprops={"linewidth": 0, "width": 0.55})
+    total = sum(sizes) or 1
+    win_pct = round(scores["player"] / total * 100, 1)
+    ax.text(0, 0, f"{win_pct}%\nWIN RATE", ha="center", va="center",
+            fontsize=13, fontweight="bold")
+    ax.legend(wedges, ["WIN", "LOSE", "TIE"], loc="lower center", ncol=3,
+              fontsize=8, bbox_to_anchor=(0.5, -0.06))
+    plt.tight_layout()
+    return fig
+
+
+def chart_heatmap():
+    if len(s.game_log) < 6:
+        return None
+    fig, ax = plt.subplots(figsize=(5, 4))
+    grid = np.zeros((3, 3))
+    for entry in s.game_log:
+        pi = MOVES.index(entry["player_move"])
+        ai = MOVES.index(entry["ai_move"])
+        val = 1 if entry["result"] == "win" else (
+            -1 if entry["result"] == "lose" else 0)
+        grid[pi][ai] += val
+    ax.imshow(grid, cmap="RdYlGn", vmin=-5, vmax=5)
+    ax.set_xticks(range(3))
+    ax.set_yticks(range(3))
+    ax.set_xticklabels([f"{EMOJIS[m]} AI" for m in MOVES])
+    ax.set_yticklabels([f"You {EMOJIS[m]}" for m in MOVES])
+    ax.set_title("Matchup Score (green=win)")
+    for i in range(3):
+        for j in range(3):
+            ax.text(j, i, f"{int(grid[i][j]):+d}", ha="center", va="center",
+                    fontsize=10, fontweight="bold", color="white")
+    plt.tight_layout()
+    return fig
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  SIDEBAR
+# ═══════════════════════════════════════════════════════════════════════════════
+with st.sidebar:
+    st.title("⚙ Settings")
+    strategy_choice = st.selectbox(
+        "AI Strategy",
+        options=list(AI_STRATEGY_LABELS.keys()),
+        format_func=lambda x: AI_STRATEGY_LABELS[x],
+        index=list(AI_STRATEGY_LABELS.keys()).index(s.ai_strategy),
+    )
+    s.ai_strategy = strategy_choice
+
+    strategy_info = {
+        "frequency":  "Tracks overall move frequency. Effective after 5+ rounds.",
+        "markov":     "Models transition probabilities. Strong against habitual patterns.",
+        "adaptive":   "Ensemble of all models. Strongest overall performance.",
+        "aggressive": "Focuses on recent 8 moves. Fast to adapt, can be baited.",
+    }
+    st.caption(strategy_info.get(s.ai_strategy, ""))
+
+    s.show_debug = st.toggle("Show Debug Info", value=s.show_debug)
+
+    if st.button("🔄 Reset Game", key="sidebar_reset"):
+        reset_game()
+        st.rerun()
+
+    st.divider()
+    st.caption("NEXUS RPS ENGINE · v2.0.0 · Built with Streamlit")
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  MAIN UI
+# ═══════════════════════════════════════════════════════════════════════════════
+st.title("⬡ NEXUS RPS ENGINE")
+st.caption(
+    f"Pattern Recognition AI · {AI_STRATEGY_LABELS.get(s.ai_strategy)} · {s.rounds} rounds played")
+st.divider()
+
+# ── Scoreboard ────────────────────────────────────────────────────────────────
+sc = s.scores
+tot = sum(sc.values()) or 1
+col1, col2, col3, col4 = st.columns(4)
+col1.metric("🟢 Your Wins", sc["player"], f"{round(sc['player']/tot*100,1)}%")
+col2.metric("🔴 AI Wins",   sc["ai"],     f"{round(sc['ai']/tot*100,1)}%")
+col3.metric("🟣 Ties",      sc["ties"],   f"{round(sc['ties']/tot*100,1)}%")
+col4.metric("🔵 Rounds",    s.rounds,     "played")
+
+win_rate = round(sc["player"] / tot * 100, 1)
+st.progress(win_rate / 100, text=f"Win Rate: {win_rate}%")
+st.divider()
+
+# ── Achievement Toast ─────────────────────────────────────────────────────────
+if s.new_achievement:
+    icon, title, desc = s.new_achievement
+    st.success(f"{icon} **Achievement Unlocked: {title}** — {desc}")
+    s.new_achievement = None
+
+# ── Play Area ─────────────────────────────────────────────────────────────────
+col_play, col_info = st.columns([3, 2], gap="large")
+
+with col_play:
+    st.subheader("Make Your Move")
+    st.caption(f"AI Engine: {AI_STRATEGY_LABELS.get(s.ai_strategy)} "
+               + (f"· Last Confidence: {round(s.ai_confidence*100)}%" if s.rounds > 0 else ""))
+
+    if s.ai_predicted and s.rounds > 2:
+        st.caption(
+            f"AI predicted your last move as: {EMOJIS[s.ai_predicted]} {s.ai_predicted.upper()}")
+
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        if st.button("🪨\nROCK", key="btn_rock", use_container_width=True):
+            play_round("rock")
+            st.rerun()
+    with c2:
+        if st.button("📄\nPAPER", key="btn_paper", use_container_width=True):
+            play_round("paper")
+            st.rerun()
+    with c3:
+        if st.button("✂️\nSCISSORS", key="btn_scissors", use_container_width=True):
+            play_round("scissors")
             st.rerun()
 
-st.markdown("</div>", unsafe_allow_html=True)
+    st.write("")
 
-# ================================================
-# 🔄 RESET BUTTON
-# ================================================
-st.markdown("<div class='game-card'>", unsafe_allow_html=True)
-col1, col2, col3 = st.columns([1, 2, 1])
-with col2:
-    if st.button("🔄 RESET GAME", key="reset"):
-        reset_game()
-        st.success("✅ Game reset successfully!")
-        time.sleep(0.5)
-        st.rerun()
-st.markdown("</div>", unsafe_allow_html=True)
+    # Pattern warning
+    if s.pattern_warning:
+        st.warning(f"⚠️ Pattern Detected — {s.pattern_warning}")
 
-# ================================================
-# 🎮 LAST ROUND RESULTS
-# ================================================
-if st.session_state.last_round["player"]:
-    st.markdown("<div class='game-card'>", unsafe_allow_html=True)
-    st.markdown("<p class='stats-header'>🎮 Last Round</p>",
-                unsafe_allow_html=True)
+    # Result display
+    if s.last_round is None:
+        st.info("🪨📄✂️  Awaiting your first move…")
+    else:
+        r = s.last_round
+        result_icons = {"win": "🟢", "lose": "🔴", "tie": "🟣"}
+        verdict_text = {"win": "YOU WIN 🎉",
+                        "lose": "AI WINS 🤖", "tie": "IT'S A TIE 🤝"}
+        st.write(f"**Round {r['round_no']}** — "
+                 f"You: {EMOJIS[r['player_move']]} {r['player_move'].upper()}  vs  "
+                 f"AI: {EMOJIS[r['ai_move']]} {r['ai_move'].upper()}")
+        result_fn = {"win": st.success, "lose": st.error,
+                     "tie": st.info}[r["result"]]
+        result_fn(f"{result_icons[r['result']]}  **{verdict_text[r['result']]}**  "
+                  f"(AI confidence: {round(r['confidence']*100)}%)")
 
-    player = st.session_state.last_round["player"]
-    ai = st.session_state.last_round["ai"]
-    result = st.session_state.last_round["result"]
-    color = st.session_state.last_round["color"]
+    # Streak
+    st.write("")
+    streak = s.current_streak
+    if streak > 0:
+        st.success(f"🔥 {streak}-win streak!   Best: {s.best_win_streak}")
+    elif streak < 0:
+        st.error(
+            f"❄️ {abs(streak)}-lose streak   Best win streak: {s.best_win_streak}")
+    else:
+        st.info(f"No active streak   Best win streak: {s.best_win_streak}")
 
-    st.markdown(f"""
-        <div class='result-box' style='background: linear-gradient(135deg, {color} 0%, {color}dd 100%);'>
-            <div style='font-size: 3em; margin-bottom: 10px;'>
-                {EMOJIS[player]} VS {EMOJIS[ai]}
-            </div>
-            <div style='font-size: 1.1em; opacity: 0.9;'>
-                You: <b>{player.upper()}</b> | AI: <b>{ai.upper()}</b>
-            </div>
-            <div style='margin-top: 15px; font-size: 1.3em;'>
-                {result}
-            </div>
-        </div>
-    """, unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+with col_info:
+    st.subheader("Move Distribution")
+    for move in MOVES:
+        count = s.move_freq[move]
+        pct = count / (s.rounds or 1)
+        st.write(f"{EMOJIS[move]} **{move.upper()}** — {count}")
+        st.progress(pct)
+
+    st.divider()
+    st.subheader("Win / Loss Ratio")
+    fig_donut = chart_result_donut()
+    if fig_donut:
+        st.pyplot(fig_donut, use_container_width=True)
+    else:
+        st.caption("Play a few rounds to see the chart.")
+
+st.divider()
+
+# ── Analytics Tabs ────────────────────────────────────────────────────────────
+st.subheader("📊 Performance Analytics")
+tab1, tab2, tab3, tab4 = st.tabs(
+    ["📈 Win Timeline", "🎯 Move Distribution", "🤖 AI Confidence", "🔥 Matchup Map"])
+
+with tab1:
+    fig = chart_win_timeline()
+    if fig:
+        st.pyplot(fig, use_container_width=True)
+    else:
+        st.info("Play at least 3 rounds to see the win timeline.")
+
+with tab2:
+    fig = chart_move_distribution()
+    if fig:
+        st.pyplot(fig, use_container_width=True)
+    else:
+        st.info("Play at least 1 round to see your move distribution.")
+
+with tab3:
+    fig = chart_ai_confidence()
+    if fig:
+        st.pyplot(fig, use_container_width=True)
+        st.caption("Higher confidence = AI is more certain about your next move.")
+    else:
+        st.info("Play at least 3 rounds to see AI confidence over time.")
+
+with tab4:
+    fig = chart_heatmap()
+    if fig:
+        st.pyplot(fig, use_container_width=True)
+    else:
+        st.info("Play at least 6 rounds to see the matchup heatmap.")
+
+st.divider()
+
+# ── Game Log ──────────────────────────────────────────────────────────────────
+st.subheader("📋 Round History")
+
+if not s.game_log:
+    st.caption("No rounds played yet.")
 else:
-    st.markdown("<div class='game-card'>", unsafe_allow_html=True)
-    st.info("🎲 Make your first move to start the game!")
-    st.markdown("</div>", unsafe_allow_html=True)
+    recent = list(reversed(s.game_log[-10:]))
+    df = pd.DataFrame(recent)
+    df = df.rename(columns={
+        "round": "Round", "player_move": "Your Move", "ai_move": "AI Move",
+        "result": "Result", "confidence": "AI Conf %", "ts": "Time"
+    })
+    df["Your Move"] = df["Your Move"].apply(
+        lambda m: f"{EMOJIS[m]} {m.upper()}")
+    df["AI Move"] = df["AI Move"].apply(lambda m: f"{EMOJIS[m]} {m.upper()}")
+    df["Result"] = df["Result"].apply(
+        lambda r: {"win": "✅ WIN", "lose": "❌ LOSE", "tie": "🟣 TIE"}[r])
+    st.dataframe(df, use_container_width=True, hide_index=True)
 
-# ================================================
-# 📊 SCOREBOARD
-# ================================================
-st.markdown("<div class='game-card'>", unsafe_allow_html=True)
-st.markdown("<p class='stats-header'>📊 Live Scoreboard</p>",
-            unsafe_allow_html=True)
+    csv_data = pd.DataFrame(s.game_log).to_csv(index=False)
+    col_e1, col_e2, col_e3 = st.columns([1, 2, 1])
+    with col_e2:
+        st.download_button(
+            "⬇ Export Game Log (CSV)", data=csv_data,
+            file_name=f"nexus_rps_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+            mime="text/csv", use_container_width=True,
+        )
 
-scores = st.session_state.scores
-total_games = sum(scores.values()) or 1
+st.divider()
 
-# Win rates
-player_rate = round((scores["player"] / total_games) * 100, 1)
-ai_rate = round((scores["ai"] / total_games) * 100, 1)
-tie_rate = round((scores["ties"] / total_games) * 100, 1)
+# ── Achievements ──────────────────────────────────────────────────────────────
+st.subheader("🏆 Achievements")
+all_achv = [
+    ("first_blood", "⚔️", "FIRST BLOOD",  "Played first round"),
+    ("ten_rounds",  "🔟", "DECADE",        "10 rounds played"),
+    ("streak_5",    "🔥", "ON FIRE",        "5-win streak"),
+    ("streak_10",   "💥", "UNSTOPPABLE",   "10-win streak"),
+    ("veteran",     "🎖️", "VETERAN",       "25 total wins"),
+    ("endurance",   "🏃", "ENDURANCE",     "50 rounds played"),
+    ("dominator",   "👑", "DOMINATOR",     ">70% win rate, 10+ rounds"),
+]
+achv_cols = st.columns(4)
+for i, (key, icon, title, desc) in enumerate(all_achv):
+    unlocked = key in s.achievements
+    with achv_cols[i % 4]:
+        if unlocked:
+            st.success(f"{icon} **{title}**\n\n{desc} ✓")
+        else:
+            st.caption(f"{icon} {title} — {desc}")
 
-# Display win rate
-st.markdown(f"**🏆 Your Win Rate: {player_rate}%**")
-st.progress(player_rate / 100)
+st.divider()
 
-st.markdown("<br>", unsafe_allow_html=True)
+# ── Tips ──────────────────────────────────────────────────────────────────────
+st.subheader("💡 Strategy Tips")
+tips = [
+    ("🧠", "AI ADAPTS", "The engine builds a Markov model of your transitions. Every move trains it."),
+    ("🎲", "STAY RANDOM", "True randomness beats pattern-based AI. Avoid repeated sequences."),
+    ("📊", "WATCH THE BARS",
+     "If one move dominates your frequency, the AI has likely adapted."),
+    ("🔄", "SWITCH STRATEGY",
+     "Change AI difficulty in the sidebar to test different engines."),
+]
+t1, t2 = st.columns(2)
+for i, (icon, title, desc) in enumerate(tips):
+    with (t1 if i % 2 == 0 else t2):
+        st.info(f"{icon} **{title}** — {desc}")
 
-# Score metrics
-col1, col2, col3 = st.columns(3)
-with col1:
-    st.metric("👤 Player", scores["player"], delta=f"{player_rate}%")
-with col2:
-    st.metric("🤖 AI", scores["ai"], delta=f"{ai_rate}%")
-with col3:
-    st.metric("🤝 Ties", scores["ties"], delta=f"{tie_rate}%")
+st.divider()
 
-st.markdown("</div>", unsafe_allow_html=True)
+# ── Debug Panel ───────────────────────────────────────────────────────────────
+if s.show_debug and s.rounds > 0:
+    st.subheader("🐛 Debug — Internal State")
+    d1, d2 = st.columns(2)
+    with d1:
+        st.write("**Move Frequency**")
+        st.json(s.move_freq)
+        st.write("**Scores**")
+        st.json(s.scores)
+    with d2:
+        st.write("**Markov Transition Matrix**")
+        st.json(s.markov)
+        st.write("**AI State**")
+        st.json({"strategy": s.ai_strategy, "confidence": round(s.ai_confidence*100, 1),
+                 "predicted": s.ai_predicted, "prev_move": s.prev_player_move})
+    st.divider()
 
-# ================================================
-# 📈 MOVE HISTORY VISUALIZATION
-# ================================================
-if st.session_state.rounds_played > 0:
-    st.markdown("<div class='game-card'>", unsafe_allow_html=True)
-    st.markdown("<p class='stats-header'>📈 Your Move Analysis</p>",
-                unsafe_allow_html=True)
+# ── Reset ─────────────────────────────────────────────────────────────────────
+col_r1, col_r2, col_r3 = st.columns([1, 2, 1])
+with col_r2:
+    if st.button("↺ RESET GAME", key="bottom_reset", use_container_width=True):
+        reset_game()
+        st.rerun()
 
-    fig, ax = plt.subplots(figsize=(10, 5))
-
-    moves_data = list(st.session_state.move_history.values())
-    colors = ['#667eea', '#764ba2', '#f093fb']
-
-    bars = ax.bar(MOVES, moves_data, color=colors,
-                  edgecolor='white', linewidth=2)
-
-    # Add value labels on bars
-    for bar in bars:
-        height = bar.get_height()
-        ax.text(bar.get_x() + bar.get_width()/2., height,
-                f'{int(height)}',
-                ha='center', va='bottom', fontweight='bold', fontsize=12)
-
-    ax.set_xlabel('Move Type', fontsize=12, fontweight='bold')
-    ax.set_ylabel('Times Played', fontsize=12, fontweight='bold')
-    ax.set_title('Your Move Frequency Pattern',
-                 fontsize=14, fontweight='bold', pad=20)
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.grid(axis='y', alpha=0.3, linestyle='--')
-
-    plt.tight_layout()
-    st.pyplot(fig)
-    plt.close()
-
-    st.markdown("</div>", unsafe_allow_html=True)
-
-# ================================================
-# 📜 GAME LOG
-# ================================================
-if len(st.session_state.game_log) > 0:
-    st.markdown("<div class='game-card'>", unsafe_allow_html=True)
-    st.markdown("<p class='stats-header'>📜 Recent Game History</p>",
-                unsafe_allow_html=True)
-
-    # Show last 5 rounds
-    # Reverse to show newest first
-    recent_games = st.session_state.game_log[-5:][::-1]
-
-    df = pd.DataFrame(recent_games)
-    df['player'] = df['player'].apply(lambda x: f"{EMOJIS[x]} {x.upper()}")
-    df['ai'] = df['ai'].apply(lambda x: f"{EMOJIS[x]} {x.upper()}")
-    df['winner'] = df['winner'].apply(
-        lambda x: "👤 Player" if x == "player" else "🤖 AI" if x == "ai" else "🤝 Tie")
-
-    st.dataframe(
-        df[['round', 'player', 'ai', 'winner', 'timestamp']].rename(columns={
-            'round': 'Round',
-            'player': 'Your Move',
-            'ai': 'AI Move',
-            'winner': 'Winner',
-            'timestamp': 'Time'
-        }),
-        use_container_width=True,
-        hide_index=True
-    )
-
-    st.markdown("</div>", unsafe_allow_html=True)
-
-# ================================================
-# 💡 STRATEGY TIPS
-# ================================================
-st.markdown("""
-    <div class='strategy-tip'>
-        <h3 style='margin-top: 0; color: white;'>💡 Pro Strategy Tips</h3>
-        <p style='margin-bottom: 0; font-size: 1.05em; line-height: 1.6;'>
-            🧠 <b>The AI learns from your patterns!</b> It tracks your most frequent moves and recent choices.<br>
-            🎯 <b>Stay unpredictable</b> - Mix up your strategy to keep the AI guessing.<br>
-            🔄 <b>Break patterns</b> - If you notice you're losing, try changing your approach!<br>
-            📊 <b>Study your stats</b> - Use the move analysis to see if you're becoming predictable.
-        </p>
-    </div>
-""", unsafe_allow_html=True)
-
-# ================================================
-# 📱 FOOTER
-# ================================================
-st.markdown("<br><br>", unsafe_allow_html=True)
-st.markdown("""
-    <div style='text-align: center; color: white; opacity: 0.8; font-size: 0.9em;'>
-        <p>Built with ❤️ using Streamlit | AI-Powered Rock-Paper-Scissors</p>
-    </div>
-""", unsafe_allow_html=True)
+st.caption(f"NEXUS RPS ENGINE · v2.0.0 · {s.rounds} rounds played · "
+           f"{len(s.achievements)}/7 achievements · Built with Streamlit")
